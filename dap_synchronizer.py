@@ -14,7 +14,7 @@ import sqlalchemy
 load_dotenv()
 logger = logging.getLogger("dap")
 logger.setLevel(logging.INFO)
-logger.addHandler(logging.StreamHandler())
+logger.addHandler(logging.StreamHandler(sys.stdout))
 
 base_url: str = os.environ["DAP_API_URL"]
 client_id: str = os.environ["DAP_CLIENT_ID"]
@@ -61,7 +61,6 @@ async def main(args):
             logger.info(f'Sync Beginning: {table_name}')
             await sync_table_db_sync(table_name)
             logger.info(f'Sync Completed: {table_name}')
-    print(table_list)
 
 
 if __name__ == "__main__":
