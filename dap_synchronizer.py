@@ -13,14 +13,12 @@ import datetime
 
 
 load_dotenv()
+FORMAT = '%(asctime)-15s %(message)s'
+logging.basicConfig(format=FORMAT)
 logger = logging.getLogger("dap")
 logger.setLevel(logging.INFO)
 formatter = logging.Formatter()
-formatter.formatTime = (lambda self, record, date_format=None:
-                        datetime.datetime.fromtimestamp(record.created, datetime.timezone.utc)
-                        .astimezone().isoformat(sep="T", timespec="milliseconds"))
 handler = logging.StreamHandler(sys.stdout)
-handler.setFormatter(formatter)
 logger.addHandler(handler)
 
 base_url: str = os.environ["DAP_API_URL"]
