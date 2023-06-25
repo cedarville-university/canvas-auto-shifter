@@ -9,12 +9,19 @@ from dap.api import DAPClient
 from dap.database.connection import DatabaseConnection
 from dap.replicator.sql import SQLReplicator
 import sqlalchemy
+import datetime
 
 
 load_dotenv()
 logger = logging.getLogger("dap")
 logger.setLevel(logging.INFO)
-logger.addHandler(logging.StreamHandler(sys.stdout))
+formatter = logging.Formatter()
+formatter.formatTime = (lambda self, record, date_format=None:
+                        datetime.datetime.fromtimestamp(record.created, datetime.timezone.utc)
+                        .astimezone().isoformat(sep="T", timespec="milliseconds"))
+handler = logging.StreamHandler(sys.stdout)
+handler.setFormatter(formatter)
+logger.addHandler(handler)
 
 base_url: str = os.environ["DAP_API_URL"]
 client_id: str = os.environ["DAP_CLIENT_ID"]
@@ -29,12 +36,13 @@ async def get_dap_tables() -> list:
         return await session.get_tables(namespace="canvas")
 
 
-async def init_table_db_sync(table_name) -> list:
+async def init_table_db_sync(table_name):
     async with DatabaseConnection(connection_string).open() as db_connection:
         async with DAPClient(base_url, credentials) as session:
             await SQLReplicator(session, db_connection).initialize("canvas", table_name)
 
-async def sync_table_db_sync(table_name) -> list:
+
+async def sync_table_db_sync(table_name):
     async with DatabaseConnection(connection_string).open() as db_connection:
         async with DAPClient(base_url, credentials) as session:
             await SQLReplicator(session, db_connection).synchronize("canvas", table_name)
@@ -54,7 +62,7 @@ async def main(args):
             try:
                 await init_table_db_sync(table_name)
                 logger.info(f'Init Completed: {table_name}')
-            except dap.database.database_errors.TableAlreadyExistsError as e:
+            except dap.database.database_errors.TableAlreadyExistsError:
                 logger.info(f"Table {table_name} already initialized")
     if "sync" in args:
         for table_name in table_list:
