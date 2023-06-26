@@ -9,7 +9,6 @@ from dap.api import DAPClient
 from dap.database.connection import DatabaseConnection
 from dap.replicator.sql import SQLReplicator
 import sqlalchemy
-import datetime
 
 
 load_dotenv()
@@ -39,8 +38,7 @@ async def init_table_db_sync(table_name):
         async with DAPClient(base_url, credentials) as session:
             await SQLReplicator(session, db_connection).initialize("canvas", table_name)
 
-
-async def sync_table_db_sync(table_name):
+async def sync_table_db_sync(table_name) -> list:
     async with DatabaseConnection(connection_string).open() as db_connection:
         async with DAPClient(base_url, credentials) as session:
             await SQLReplicator(session, db_connection).synchronize("canvas", table_name)
