@@ -2,11 +2,11 @@ import sys
 import logging
 import os
 from dotenv import load_dotenv
-import dap.database.database_errors
+import dap.integration.database_errors
 from dap.dap_types import Credentials
 import asyncio
 from dap.api import DAPClient
-from dap.database.connection import DatabaseConnection
+from dap.integration.database import DatabaseConnection
 from dap.replicator.sql import SQLReplicator
 import sqlalchemy
 
@@ -28,43 +28,64 @@ connection_string: str = os.environ["DAP_CONNECTION_STRING"]
 credentials = Credentials.create(client_id=client_id, client_secret=client_secret)
 
 
-async def get_dap_tables() -> list:
-    async with DAPClient(base_url, credentials) as session:
-        return await session.get_tables(namespace="canvas")
+async def get_dap_tables(namespace, creds) -> list:
+    async with DAPClient(base_url, creds) as session:
+        return await session.get_tables(namespace=namespace)
 
 
-async def init_table_db_sync(table_name):
+async def init_table_db_sync(table_name, namespace):
     async with DatabaseConnection(connection_string).open() as db_connection:
         async with DAPClient(base_url, credentials) as session:
-            await SQLReplicator(session, db_connection).initialize("canvas", table_name)
+            await SQLReplicator(session, db_connection).initialize(namespace, table_name)
 
-async def sync_table_db_sync(table_name) -> list:
+
+async def sync_table_db_sync(table_name, namespace):
     async with DatabaseConnection(connection_string).open() as db_connection:
         async with DAPClient(base_url, credentials) as session:
-            await SQLReplicator(session, db_connection).synchronize("canvas", table_name)
+            await SQLReplicator(session, db_connection).synchronize(namespace, table_name)
 
 
 async def main(args):
-    table_list = await get_dap_tables()
     eng = sqlalchemy.create_engine(connection_string)
     inspector = sqlalchemy.inspect(eng)
     existing_tables = inspector.get_table_names("canvas")
-    if "init" in args:
-        for table_name in table_list:
-            if table_name in existing_tables:
-                logger.info(f"Skipping initialization of existing table {table_name}")
-                continue
-            logger.info(f'Init Beginning: {table_name}')
-            try:
-                await init_table_db_sync(table_name)
-                logger.info(f'Init Completed: {table_name}')
-            except dap.database.database_errors.TableAlreadyExistsError:
-                logger.info(f"Table {table_name} already initialized")
-    if "sync" in args:
-        for table_name in table_list:
-            logger.info(f'Sync Beginning: {table_name}')
-            await sync_table_db_sync(table_name)
-            logger.info(f'Sync Completed: {table_name}')
+    # Do web logs
+    if "logs" in args:
+        log_table_list = await get_dap_tables("canvas_logs", credentials)
+        if "init" in args:
+            for table_name in log_table_list:
+                if table_name in existing_tables:
+                    logger.info(f"Skipping initialization of existing log table {table_name}")
+                    continue
+                logger.info(f'Init Beginning (logs): {table_name}')
+                try:
+                    await init_table_db_sync(table_name, "canvas_logs")
+                    logger.info(f'Init Completed (logs): {table_name}')
+                except dap.integration.database_errors.TableAlreadyExistsError:
+                    logger.info(f"Log table {table_name} already initialized")
+        if "sync" in args:
+            for table_name in log_table_list:
+                logger.info(f'Sync Beginning (logs): {table_name}')
+                await sync_table_db_sync(table_name, "canvas_logs")
+                logger.info(f'Sync Completed (logs): {table_name}')
+    if "main" in args:
+        table_list = await get_dap_tables("canvas", credentials)
+        if "init" in args:
+            for table_name in table_list:
+                if table_name in existing_tables:
+                    logger.info(f"Skipping initialization of existing table {table_name}")
+                    continue
+                logger.info(f'Init Beginning: {table_name}')
+                try:
+                    await init_table_db_sync(table_name, "canvas")
+                    logger.info(f'Init Completed: {table_name}')
+                except dap.integration.database_errors.TableAlreadyExistsError:
+                    logger.info(f"Table {table_name} already initialized")
+        if "sync" in args:
+            for table_name in table_list:
+                logger.info(f'Sync Beginning: {table_name}')
+                await sync_table_db_sync(table_name, "canvas")
+                logger.info(f'Sync Completed: {table_name}')
 
 
 if __name__ == "__main__":
