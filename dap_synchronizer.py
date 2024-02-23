@@ -59,7 +59,7 @@ async def main(args):
                     continue
                 logger.info(f'Init Beginning (logs): {table_name}')
                 try:
-                    await init_table_db_sync(table_name, "canvas_logs")
+                    await init_table_db_sync(table_name, "canvas_logs", )
                     logger.info(f'Init Completed (logs): {table_name}')
                 except dap.integration.database_errors.TableAlreadyExistsError:
                     logger.info(f"Log table {table_name} already initialized")
