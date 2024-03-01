@@ -16,6 +16,8 @@ FORMAT = '%(asctime)-15s %(message)s'
 logging.basicConfig(format=FORMAT)
 logger = logging.getLogger("dap")
 logger.setLevel(logging.INFO)
+if "DEBUG" in sys.argv:
+    logger.setLevel(logging.DEBUG)
 formatter = logging.Formatter()
 handler = logging.StreamHandler(sys.stdout)
 logger.addHandler(handler)
@@ -34,15 +36,23 @@ async def get_dap_tables(namespace, creds) -> list:
 
 
 async def init_table_db_sync(table_name, namespace):
-    async with DatabaseConnection(connection_string).open() as db_connection:
-        async with DAPClient(base_url, credentials) as session:
-            await SQLReplicator(session, db_connection).initialize(namespace, table_name)
+    db_connection = DatabaseConnection(connection_string)
+    async with DAPClient(base_url, credentials) as session:
+        try:
+            sql = SQLReplicator(session, db_connection)
+            await sql.initialize(namespace, table_name)
+        except ValueError as ve:
+            if "table already replicated, use `syncdb`" in ve.args:
+                logger.info(f"Table {table_name} already initialized")
+            else:
+                raise ve
+
 
 
 async def sync_table_db_sync(table_name, namespace):
-    async with DatabaseConnection(connection_string).open() as db_connection:
-        async with DAPClient(base_url, credentials) as session:
-            await SQLReplicator(session, db_connection).synchronize(namespace, table_name)
+    db_connection = DatabaseConnection(connection_string)
+    async with DAPClient(base_url, credentials) as session:
+        await SQLReplicator(session, db_connection).synchronize(namespace, table_name)
 
 
 async def main(args):
@@ -89,6 +99,9 @@ async def main(args):
 
 
 if __name__ == "__main__":
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(main(sys.argv))
-    loop.close()
+    if 'seq' in sys.argv:
+        asyncio.run(main(sys.argv))
+    else:
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(main(sys.argv))
+        loop.close()
