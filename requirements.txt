@@ -1,4 +1,5 @@
-instructure-dap-client >= 1.0.0
+instructure-dap-client >= 1.1.0
 python-dotenv
 psycopg2-binary
 sqlalchemy
+pysqlsync[postgresql]
