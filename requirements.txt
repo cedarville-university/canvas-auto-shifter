@@ -1,4 +1,4 @@
-instructure-dap-client
+instructure-dap-client >= 1.0.0
 python-dotenv
 psycopg2-binary
 sqlalchemy
