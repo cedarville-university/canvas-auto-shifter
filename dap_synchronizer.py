@@ -19,8 +19,12 @@ logger.setLevel(logging.INFO)
 if "DEBUG" in sys.argv:
     logger.setLevel(logging.DEBUG)
 formatter = logging.Formatter()
+logFormatter = logging.Formatter("%(asctime)s [%(threadName)-12.12s] [%(levelname)-5.5s]  %(message)s")
 handler = logging.StreamHandler(sys.stdout)
+fileHandler = RotatingFileHandler('./canvas_auto_shifter.log', maxBytes=2000, backupCount=10)
+fileHandler.setFormatter(logFormatter)
 logger.addHandler(handler)
+logger.addHandler(fileHandler)
 
 base_url: str = os.environ["DAP_API_URL"]
 client_id: str = os.environ["DAP_CLIENT_ID"]
