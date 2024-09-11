@@ -23,7 +23,7 @@ if "DEBUG" in sys.argv:
 formatter = logging.Formatter()
 logFormatter = logging.Formatter("%(asctime)s [%(threadName)-12.12s] [%(levelname)-5.5s]  %(message)s")
 handler = logging.StreamHandler(sys.stdout)
-fileHandler = RotatingFileHandler('./canvas_auto_shifter.log', maxBytes=2000, backupCount=10)
+fileHandler = RotatingFileHandler('./canvas_auto_shifter.log', maxBytes=2000000000, backupCount=10)
 fileHandler.setFormatter(logFormatter)
 logger.addHandler(handler)
 logger.addHandler(fileHandler)
