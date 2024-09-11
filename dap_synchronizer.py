@@ -1,5 +1,6 @@
 import sys
 import logging
+from logging.handlers import RotatingFileHandler
 import os
 from dotenv import load_dotenv
 import dap.integration.database_errors
