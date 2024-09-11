@@ -9,6 +9,7 @@ from dap.api import DAPClient
 from dap.integration.database import DatabaseConnection
 from dap.replicator.sql import SQLReplicator
 import sqlalchemy
+from pathlib import Path
 
 
 load_dotenv()
@@ -109,3 +110,4 @@ if __name__ == "__main__":
         loop = asyncio.get_event_loop()
         loop.run_until_complete(main(sys.argv))
         loop.close()
+    Path("./canvas_auto_shifter_complete").touch()
