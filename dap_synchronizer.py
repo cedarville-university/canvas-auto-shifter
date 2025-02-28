@@ -45,7 +45,7 @@ async def get_dap_tables(namespace, creds) -> list:
     async with DAPClient(base_url, creds) as session:
         return await session.get_tables(namespace=namespace)
 
-# Initializes a table in the database for synchronization
+# Initializes a table in the database for synchronization, retries if an error occurs
 async def init_table_db_sync(table_name, namespace):
     db_connection = DatabaseConnection(connection_string)
     async with DAPClient(base_url, credentials) as session:
@@ -57,15 +57,30 @@ async def init_table_db_sync(table_name, namespace):
                 logger.info(f"Table {table_name} already initialized")
             else:
                 raise ve
+        except Exception as e:
+            logger.error(f"Initialization failed for table {table_name}: {e}")
+            logger.info(f"Attempting to delete and retry initialization for table {table_name}")
+            try:
+                await db_connection.connection.execute(f"DROP TABLE IF EXISTS {table_name}")
+                await sql.initialize(namespace, table_name)
+                logger.info(f"Retry initialization completed for table {table_name}")
+            except Exception as retry_e:
+                logger.error(f"Retry initialization failed for table {table_name}: {retry_e}")
+                raise retry_e
 
 # Synchronizes a table in the database
-async def sync_table_db_sync(table_name, namespace):
+async def sync_table_db_sync(table_name, namespace, error_messages):
     db_connection = DatabaseConnection(connection_string)
     async with DAPClient(base_url, credentials) as session:
-        await SQLReplicator(session, db_connection).synchronize(namespace, table_name)
+        try:
+            await SQLReplicator(session, db_connection).synchronize(namespace, table_name)
+        except Exception as e:
+            error_message = f"Sync failed for table {table_name}: {e}"
+            logger.error(error_message)
+            error_messages.append(error_message)
 
 # Processes a namespace by initializing and/or synchronizing its tables
-async def process_namespace(nspace, args, failed_tables):
+async def process_namespace(nspace, args, failed_tables, error_messages):
     eng = sqlalchemy.create_engine(connection_string)
     inspector = sqlalchemy.inspect(eng)
     existing_tables = inspector.get_table_names(nspace)
@@ -85,24 +100,23 @@ async def process_namespace(nspace, args, failed_tables):
     if "sync" in args:
         for table_name in table_list:
             logger.info(f'Sync Beginning: {table_name}')
-            try:
-                await sync_table_db_sync(table_name, nspace)
-                logger.info(f'Sync Completed: {table_name}')
-            except Exception as e:
-                logger.error(f"Sync failed for table {table_name}: {e}")
-                failed_tables.append(table_name)  # Collect failed tables
-                continue  # Continue with the next table
+            await sync_table_db_sync(table_name, nspace, error_messages)
+            logger.info(f'Sync Completed: {table_name}')
 
 # Sends an email with the list of tables that failed to sync and the total time taken
-def send_failure_email(failed_tables, total_time):
+def send_failure_email(failed_tables, error_messages, total_time):
     if not failed_tables:
         return
+
+    total_time_minutes = total_time / 60  # Convert time to minutes
 
     subject = "Canvas Sync Failure Report"
     body = (
         "The following tables have failed to sync:\n\n"
         + "\n".join(failed_tables)
-        + f"\n\nThe total time took to sync was: {total_time}"
+        + "\n\nError messages:\n\n"
+        + "\n".join(error_messages)
+        + f"\n\nThe total time took to sync was: {total_time_minutes:.2f} minutes"
     )
 
     msg = MIMEText(body)
@@ -121,16 +135,17 @@ def send_failure_email(failed_tables, total_time):
 async def main(args):
     namespaces = ["canvas", "canvas_logs"]
     failed_tables = []
+    error_messages = []
     start_time = time.time()
 
     for nspace in namespaces:
         if nspace == "canvas" and "main" in args:
-            await process_namespace(nspace, args, failed_tables)
+            await process_namespace(nspace, args, failed_tables, error_messages)
         elif nspace == "canvas_logs" and "logs" in args:
-            await process_namespace(nspace, args, failed_tables)
+            await process_namespace(nspace, args, failed_tables, error_messages)
 
     total_time = time.time() - start_time
-    send_failure_email(failed_tables, total_time)
+    send_failure_email(failed_tables, error_messages, total_time)
 
 if __name__ == "__main__":
     if 'seq' in sys.argv:
