@@ -42,13 +42,13 @@ credentials = Credentials.create(client_id=client_id, client_secret=client_secre
 
 # Fetches the list of tables for a given namespace using DAPClient
 async def get_dap_tables(namespace, creds) -> list:
-    async with DAPClient(base_url, creds) as session:
+    async with DAPClient(credentials=creds) as session:
         return await session.get_tables(namespace=namespace)
 
 # Initializes a table in the database for synchronization, retries if an error occurs
 async def init_table_db_sync(table_name, namespace):
     db_connection = DatabaseConnection(connection_string)
-    async with DAPClient(base_url, credentials) as session:
+    async with DAPClient(credentials=credentials) as session:
         try:
             sql = SQLReplicator(session, db_connection)
             await sql.initialize(namespace, table_name)
@@ -62,6 +62,7 @@ async def init_table_db_sync(table_name, namespace):
             logger.info(f"Attempting to delete and retry initialization for table {table_name}")
             try:
                 await db_connection.connection.execute(f"DROP TABLE IF EXISTS {table_name}")
+                await sql.version_upgrade()
                 await sql.initialize(namespace, table_name)
                 logger.info(f"Retry initialization completed for table {table_name}")
             except Exception as retry_e:
@@ -73,7 +74,9 @@ async def sync_table_db_sync(table_name, namespace, error_messages):
     db_connection = DatabaseConnection(connection_string)
     async with DAPClient(base_url, credentials) as session:
         try:
-            await SQLReplicator(session, db_connection).synchronize(namespace, table_name)
+            sql = SQLReplicator(session, db_connection)
+            await sql.version_upgrade()
+            await sql.synchronize(namespace, table_name)
         except Exception as e:
             error_message = f"Sync failed for table {table_name}: {e}"
             logger.error(error_message)
@@ -97,6 +100,7 @@ async def process_namespace(nspace, args, failed_tables, error_messages):
                 await init_table_db_sync(table_name, nspace)
                 logger.info(f'Init Completed: {table_name}')
             except dap.integration.database_errors.TableAlreadyExistsError:
+                logger.debug(f'Table {table_name} already exists, skipping initialization.')
     if "sync" in args:
         for table_name in table_list:
             logger.info(f'Sync Beginning: {table_name}')
