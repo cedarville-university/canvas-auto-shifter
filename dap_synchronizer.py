@@ -120,7 +120,7 @@ def send_failure_email(failed_tables, error_messages, total_time):
         + "\n".join(failed_tables)
         + "\n\nError messages:\n\n"
         + "\n".join(error_messages)
-        + f"\n\nThe total time took to sync was: {total_time_minutes:.2f} minutes"
+        + f"\n\nThe total time it took to sync was: {total_time_minutes:.2f} minutes"
     )
 
     msg = MIMEText(body)
